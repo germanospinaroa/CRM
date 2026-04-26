@@ -267,6 +267,17 @@ npm run build
 
 Fase 1 incluye las rutas `/CRM/settings` y `/api/settings`, verificables en el build output.
 
+## Debugging y Troubleshooting
+
+Si encuentras problemas durante el uso:
+
+- **Página se queda en "Cargando workspace..."**: Ver `TROUBLESHOOTING.md`
+- **Error al conectar con Supabase**: Verificar variables NEXT_PUBLIC_* en Vercel
+- **Rutas retornan 404**: Ejecutar `npm run build` y redeploy en Vercel
+- **Consola F12**: Siempre revisar para ver errores específicos
+
+Abre `TROUBLESHOOTING.md` para solucionar problemas comunes.
+
 ## Auditoría y mejoras UI/CRM (Abril 2026)
 
 Cambios aplicados sin modificar variables reales ni romper contratos de webhook:
@@ -288,12 +299,26 @@ No se requiere migración nueva de Supabase para estos cambios. El schema actual
 - Rutas generadas: incluye `/CRM/settings` y `/api/settings`
 - Funcionalidad: completamente operacional en `npm run dev`
 
-### Estado Vercel ⚠️
-- **Problema detectado**: Vercel sirve versión cached antigua, sin las nuevas rutas
-- **Síntoma**: `german-agent-crm.vercel.app/CRM/settings` → HTTP 404
-- **Causa probable**: Despliegue stuck en estado viejo, requiere redeploy manual
-- **Solución**: Acceder a dashboard Vercel → proyecto → "Redeploy" o reconectar GitHub
-- **Dominio custom**: `germanospina.vercel.app` también retorna DEPLOYMENT_NOT_FOUND
+### Estado Vercel ✅
+- **Todas las rutas desplegadas correctamente** en `german-agent-crm.vercel.app`
+- `/CRM` → HTTP 200
+- `/CRM/conversations` → HTTP 200
+- `/CRM/follow-ups` → HTTP 200
+- `/CRM/settings` → HTTP 200
+- `/api/settings` → HTTP 200
+
+### Mejoras en Fase 1.1 (Debugging)
+
+Se agregó mejor manejo de errores para evitar bloqueos indefinidos:
+
+1. **Timeout de 10 segundos** en autenticación con Supabase
+2. **Errores visibles** si falta configuración o hay problemas
+3. **Logging mejorado** en console (F12) para debugging
+4. **Pantalla de error** clara en lugar de bloqueo indefinido
+
+Si ves "Cargando workspace..." indefinidamente, revisa la **consola F12** para ver el error específico.
+
+**Documento de troubleshooting:** ver `TROUBLESHOOTING.md` para solucionar problemas de carga.
 
 ### Nota técnica: assetPrefix
 El archivo `next.config.ts` **ha sido limpiado** en Fase 1:
