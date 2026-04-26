@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-// Phase 1 complete: Settings, AI Control, Lead Status Management
+// Phase 1 complete: Settings, AI Control, Lead Status Management, Editable Prompts
 export const metadata: Metadata = {
   title: "CRM Pórtate Mal | Valentina",
   description:
