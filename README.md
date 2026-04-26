@@ -170,16 +170,91 @@ Esperado: `{"ok":true,"ignored":false}` y un nuevo registro en
   - `Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY` → variables.
   - `Sales Brain analysis failed` → fallback a heurística, no bloquea respuesta.
 
+## Fase 1: Control Manual y Prompt Editable (Abril 2026)
+
+### ✅ Características implementadas
+
+1. **Sistema de prompt editable**
+   - Nueva página `/CRM/settings` para editar el prompt de Valentina en tiempo real
+   - Sin redeploy: los cambios de prompt se aplican inmediatamente en el siguiente mensaje
+   - Los prompts se guardan en la tabla `app_settings` en Supabase
+
+2. **Control manual de IA por conversación**
+   - Botón toggle en la vista de Conversaciones: "Activar IA" / "Tomar control"
+   - Cuando está desactivado: Valentina NO responde, solo se guarda el mensaje
+   - Indicador visual: badges "IA"/"Manual" en la lista de conversaciones
+   - Perfecto para tomar el control de conversaciones delicadas o cerrar ventas manualmente
+
+3. **Estados de lead corregidos**
+   - El dropdown de "Stage" en Follow-ups ahora muestra todos los 12 valores correctos
+   - Antes solo mostraba 6 valores legacy
+   - Usa la lista `LEAD_STATUS_OPTIONS` de forma centralizada
+
+4. **Configuración en sidebar**
+   - Nueva sección "Configuración" en el menú lateral
+   - Link a `/CRM/settings` con contador de leads en seguimiento
+
+### 📁 Archivos creados
+
+```
+/CRM/app/CRM/settings/page.tsx             — Ruta de configuración
+/CRM/app/api/settings/route.ts             — API GET/POST para app_settings
+/CRM/components/crm/SettingsView.tsx       — UI del editor de prompt
+```
+
+### 🔧 Archivos modificados
+
+| Archivo | Cambios |
+|---------|---------|
+| `app/CRM/layout.tsx` | Comentario actualizado: agregado "Editable Prompts" |
+| `lib/openai/respond.ts` | Agregada función `getSystemPrompt()` que lee prompt de Supabase con fallback hardcodeado |
+| `lib/crm/process-incoming-message.ts` | Guard crítico: si `ai_enabled === false`, la IA no responde ni analiza |
+| `hooks/use-crm-workspace.ts` | Función `toggleAiEnabled(conversationId, enabled)` para actualizar el flag en DB |
+| `components/crm/CRMClientApp.tsx` | Agregado "settings" al tipo CRMView, nav link, y renderizado condicional |
+| `components/crm/ConversationsView.tsx` | Botón de toggle IA, badges de estado, y prop `onToggleAiEnabled` |
+| `components/crm/FollowUpsView.tsx` | Dropdown de stage ahora usa `LEAD_STATUS_OPTIONS` con mapeo correcto |
+| `lib/sales-brain/analyze.ts` | Agregado cálculo de `leadScore` (0-100) en buildHeuristicAnalysis() y normalizeAnalysis() |
+| `next.config.ts` | Removido `assetPrefix: "/CRM-static"` para evitar issues de Vercel (ver nota técnica) |
+| `package.json` | Restaurado a JSON válido (se había corrompido con comentarios) |
+
+### 🏗️ Arquitectura de Fase 1
+
+```
+UI: /CRM/settings (SettingsView)
+  │
+  └─► API: POST /api/settings { key, value }
+       │
+       └─► Supabase: INSERT/UPDATE app_settings
+            │
+            └─► Runtime: lib/openai/respond.ts
+                 │
+                 └─► getSystemPrompt() carga el prompt de DB
+                      │
+                      └─► OpenAI con prompt personalizado
+
+UI: Conversaciones (ConversationsView)
+  │
+  └─► Botón toggle "Tomar control" / "Activar IA"
+       │
+       └─► Hook: toggleAiEnabled(conversationId, !ai_enabled)
+            │
+            └─► PATCH conversations tabla
+                 │
+                 └─► Runtime: process-incoming-message.ts
+                      │
+                      └─► Guard: if (!conversation.ai_enabled) return (no respuesta)
+```
+
 ## Archivos clave
 
 - `app/api/webhook/route.ts` — entrada Meta (GET verify, POST mensajes).
-- `lib/crm/process-incoming-message.ts` — orquestación del flujo entrante.
+- `lib/crm/process-incoming-message.ts` — orquestación del flujo entrante + guard de control manual.
 - `lib/whatsapp/parse.ts` / `lib/whatsapp/send.ts` — Meta in/out.
-- `lib/openai/respond.ts` — Valentina.
-- `lib/agent/prompt.ts` — system prompt de Valentina.
+- `lib/openai/respond.ts` — Valentina con sistema de prompt dinámico.
+- `lib/agent/prompt.ts` — system prompt default de Valentina.
 - `lib/sales-brain/analyze.ts` — calificación + resumen + follow-up sugerido.
 - `lib/crm/persistence.ts` — escritura en Supabase.
-- `components/crm/*` — UI del CRM.
+- `components/crm/*` — UI del CRM + Settings.
 - `supabase/schema.sql` — DDL completo + RLS.
 - `AGENT_PROMPT.md` — documento de la persona Valentina (referencia humana).
 
@@ -189,6 +264,30 @@ Esperado: `{"ok":true,"ignored":false}` y un nuevo registro en
 npm run lint
 npm run build
 ```
+
+Fase 1 incluye las rutas `/CRM/settings` y `/api/settings`, verificables en el build output.
+
+## Despliegue actual (Abril 2026)
+
+### Estado Local ✅
+- Compilación: **Exitosa** en todos los builds
+- Rutas generadas: incluye `/CRM/settings` y `/api/settings`
+- Funcionalidad: completamente operacional en `npm run dev`
+
+### Estado Vercel ⚠️
+- **Problema detectado**: Vercel sirve versión cached antigua, sin las nuevas rutas
+- **Síntoma**: `german-agent-crm.vercel.app/CRM/settings` → HTTP 404
+- **Causa probable**: Despliegue stuck en estado viejo, requiere redeploy manual
+- **Solución**: Acceder a dashboard Vercel → proyecto → "Redeploy" o reconectar GitHub
+- **Dominio custom**: `germanospina.vercel.app` también retorna DEPLOYMENT_NOT_FOUND
+
+### Nota técnica: assetPrefix
+El archivo `next.config.ts` **ha sido limpiado** en Fase 1:
+- Se removió `assetPrefix: "/CRM-static"` que causaba issues
+- Si germanospina.com es un sitio WordPress/ajeno con proxy a Vercel en `/CRM`, 
+  habrá que replicar la config de assets.
+- Si germanospina.com apunta 100% a este proyecto Vercel, el `assetPrefix` 
+  **debe permanecer vacío** como está hoy.
 
 ## Pendiente para Pórtate Mal
 
