@@ -450,6 +450,20 @@ function buildHeuristicAnalysis(input: {
       ? `Lead con dudas: ${objections.join(", ")}`
       : null);
 
+  // Calculate lead score based on temperature and stage
+  const scoreByTemperature = {
+    hot: 70,
+    warm: 50,
+    cold: 20,
+  };
+  const scoreAdjustment =
+    leadStage === "ready_to_buy" || leadStage === "call_scheduled"
+      ? 20
+      : leadStage === "qualified"
+        ? 10
+        : 0;
+  const leadScore = Math.min(100, scoreByTemperature[leadTemperature] + scoreAdjustment);
+
   return {
     firstName: firstName ?? "missing",
     lastName: lastName ?? "missing",
@@ -466,6 +480,7 @@ function buildHeuristicAnalysis(input: {
     objections,
     leadTemperature,
     leadStage,
+    leadScore,
     intentLevel:
       leadTemperature === "hot"
         ? "high"
@@ -599,6 +614,11 @@ function sanitizeAnalysis(
       fallback.leadTemperature,
     ),
     leadStage: normalizeLeadStage(rawAnalysis.leadStage, fallback.leadStage),
+    leadScore:
+      typeof rawAnalysis.leadScore === "number" &&
+      Number.isFinite(rawAnalysis.leadScore)
+        ? Math.min(100, Math.max(0, rawAnalysis.leadScore))
+        : fallback.leadScore,
     intentLevel: cleanNullableText(rawAnalysis.intentLevel) ?? fallback.intentLevel,
     summary: cleanNullableText(rawAnalysis.summary) ?? fallback.summary,
     nextBestAction:
