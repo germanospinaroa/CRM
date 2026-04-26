@@ -63,9 +63,17 @@ export function CRMClientApp({ view }: { view: CRMView }) {
         <div className="boot-mark">
           <span className="eyebrow">Pórtate Mal · CRM</span>
           <h1>Cargando workspace…</h1>
+          <p style={{ fontSize: "0.75rem", color: "#666", marginTop: "1rem" }}>
+            Verificando autenticación y datos
+          </p>
           {workspace.error && (
             <p style={{ color: "#dc2626", marginTop: "1rem", fontSize: "0.875rem" }}>
-              {workspace.error}
+              ⚠️ {workspace.error}
+            </p>
+          )}
+          {!workspace.supabase && (
+            <p style={{ color: "#dc2626", marginTop: "1rem", fontSize: "0.875rem" }}>
+              ⚠️ Variables NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY no configuradas
             </p>
           )}
         </div>
