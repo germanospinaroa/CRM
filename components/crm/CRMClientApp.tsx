@@ -129,32 +129,32 @@ export function CRMClientApp({ view }: { view: CRMView }) {
         <nav className="sidebar-nav">
           <Link
             className="nav-link"
-            data-active={pathname === "/CRM"}
-            href="/CRM"
+            data-active={pathname === "/"}
+            href="/"
           >
             <span>Dashboard</span>
             <small>{stats.totalConversations}</small>
           </Link>
           <Link
             className="nav-link"
-            data-active={pathname === "/CRM/conversations"}
-            href="/CRM/conversations"
+            data-active={pathname === "/conversations"}
+            href="/conversations"
           >
             <span>Conversaciones</span>
             <small>{workspace.conversations.length}</small>
           </Link>
           <Link
             className="nav-link"
-            data-active={pathname === "/CRM/follow-ups"}
-            href="/CRM/follow-ups"
+            data-active={pathname === "/follow-ups"}
+            href="/follow-ups"
           >
             <span>Follow-ups</span>
             <small>{stats.pendingFollowUps}</small>
           </Link>
           <Link
             className="nav-link"
-            data-active={pathname === "/CRM/settings"}
-            href="/CRM/settings"
+            data-active={pathname === "/settings"}
+            href="/settings"
           >
             <span>Configuración</span>
           </Link>

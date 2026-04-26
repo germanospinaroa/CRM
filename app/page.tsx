@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
+import { CRMClientApp } from "@/components/crm/CRMClientApp";
 
-export default function HomePage() {
-  redirect("/CRM");
+// Dashboard with Phase 1 features: Settings, AI Control, Lead Status Management
+export default function DashboardPage() {
+  return <CRMClientApp view="dashboard" />;
 }
