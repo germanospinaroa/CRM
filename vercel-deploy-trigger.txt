@@ -1,0 +1,4 @@
+Vercel deployment trigger file - clean routes for / /conversations /follow-ups /settings
+Timestamp: 2026-04-26 15:02:00 UTC
+Version: 0.2.0
+Status: Ready for crm.germanospina.com
