@@ -120,10 +120,16 @@ export function formatDateTime(value: string | null | undefined) {
     return "Sin fecha";
   }
 
+  const date = new Date(value);
+
+  if (Number.isNaN(date.valueOf())) {
+    return "Sin fecha";
+  }
+
   return new Intl.DateTimeFormat("es-CO", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function formatDate(value: string | null | undefined) {
@@ -131,9 +137,15 @@ export function formatDate(value: string | null | undefined) {
     return "Sin fecha";
   }
 
+  const date = new Date(value);
+
+  if (Number.isNaN(date.valueOf())) {
+    return "Sin fecha";
+  }
+
   return new Intl.DateTimeFormat("es-CO", {
     dateStyle: "medium",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function getLeadTemperatureLabel(value: string | null | undefined) {
@@ -167,6 +179,66 @@ export function getLeadStatusLabel(value: string | null | undefined) {
   };
 
   return labels[status] ?? "Sin estado";
+}
+
+export function getLeadStatusTone(value: string | null | undefined) {
+  const status = (value ?? "").toLowerCase();
+
+  if (
+    status === "lost" ||
+    status === "not_qualified" ||
+    status === "closed"
+  ) {
+    return "danger";
+  }
+
+  if (status === "customer" || status === "won") {
+    return "success";
+  }
+
+  if (
+    status === "ready_for_call" ||
+    status === "ready_to_buy" ||
+    status === "call_scheduled" ||
+    status === "hot" ||
+    status === "qualified"
+  ) {
+    return "hot";
+  }
+
+  if (
+    status === "warm" ||
+    status === "nurturing" ||
+    status === "follow_up_pending"
+  ) {
+    return "warm";
+  }
+
+  if (status === "conversing" || status === "qualifying") {
+    return "info";
+  }
+
+  return "default";
+}
+
+export function isClosedLeadStatus(value: string | null | undefined) {
+  const status = (value ?? "").toLowerCase();
+  return (
+    status === "won" ||
+    status === "lost" ||
+    status === "closed" ||
+    status === "customer" ||
+    status === "not_qualified"
+  );
+}
+
+export function isReadyForCallStatus(value: string | null | undefined) {
+  const status = (value ?? "").toLowerCase();
+  return (
+    status === "ready_to_buy" ||
+    status === "ready_for_call" ||
+    status === "call_scheduled"
+  );
 }
 
 export const LEAD_STATUS_OPTIONS: Array<{ value: LeadStatus; label: string }> = [
@@ -211,6 +283,14 @@ export function getFollowUpPriorityLabel(value: string | null | undefined) {
   };
 
   return labels[priority] ?? "Media";
+}
+
+export function getFollowUpPriorityTone(value: string | null | undefined) {
+  const priority = (value ?? "").toLowerCase();
+
+  if (priority === "high") return "high";
+  if (priority === "low") return "low";
+  return "medium";
 }
 
 export function getScoreClassification(score: number): {

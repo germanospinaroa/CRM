@@ -5,8 +5,11 @@ import { useState } from "react";
 import {
   formatDateTime,
   getDisplayName,
+  getLeadPriorityLabel,
   getLeadStatusLabel,
+  getLeadStatusTone,
   getLeadTemperatureLabel,
+  getScoreClassification,
 } from "@/lib/crm/format";
 import type { ConversationRecord, FollowUpRecord } from "@/lib/types";
 
@@ -19,6 +22,7 @@ export function LeadDetailPanel({
 }) {
   const [copied, setCopied] = useState(false);
   const suggestedMessage = followUp?.last_agent_note ?? null;
+  const score = getScoreClassification(conversation.lead_score ?? 0);
 
   async function handleCopy() {
     if (!suggestedMessage) return;
@@ -40,12 +44,18 @@ export function LeadDetailPanel({
           <div className="detail-header-meta">
             <span
               className="badge"
-              data-tone={conversation.lead_temperature.toLowerCase()}
+              data-tone={conversation.lead_temperature?.toLowerCase() ?? "cold"}
             >
               {getLeadTemperatureLabel(conversation.lead_temperature)}
             </span>
-            <span className="badge badge-muted">
+            <span
+              className="badge"
+              data-tone={getLeadStatusTone(conversation.lead_status)}
+            >
               {getLeadStatusLabel(conversation.lead_status)}
+            </span>
+            <span className="badge" data-tone={score.tone}>
+              Score {conversation.lead_score ?? 0}
             </span>
           </div>
         </div>
@@ -80,12 +90,28 @@ export function LeadDetailPanel({
           <dd>{conversation.desired_product ?? "Sin definir"}</dd>
         </div>
         <div>
+          <dt>Necesidad detectada</dt>
+          <dd>{followUp?.customer_need ?? conversation.current_intent ?? "Sin definir"}</dd>
+        </div>
+        <div>
           <dt>Objeciones</dt>
           <dd>{conversation.objections ?? "Sin objeciones detectadas"}</dd>
         </div>
         <div>
           <dt>Siguiente mejor acción</dt>
           <dd>{conversation.next_step ?? "Pendiente de análisis"}</dd>
+        </div>
+        <div>
+          <dt>Prioridad</dt>
+          <dd>{getLeadPriorityLabel(conversation.lead_priority)}</dd>
+        </div>
+        <div>
+          <dt>Estado de seguimiento</dt>
+          <dd>
+            {followUp
+              ? `${getLeadStatusLabel(followUp.stage)} · ${followUp.next_step ?? "Sin siguiente paso"}`
+              : "Sin follow-up creado"}
+          </dd>
         </div>
         <div>
           <dt>Último contacto</dt>

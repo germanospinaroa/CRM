@@ -89,7 +89,7 @@ async function getSystemPrompt(): Promise<string> {
       .from("app_settings")
       .select("value")
       .eq("key", "valentina_prompt")
-      .single();
+      .maybeSingle();
 
     if (!error && data?.value) {
       return data.value;

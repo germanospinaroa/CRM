@@ -7,6 +7,7 @@ import {
   formatDateTime,
   getDisplayName,
   getLeadStatusLabel,
+  getLeadStatusTone,
   getLeadTemperatureLabel,
   summarizeText,
 } from "@/lib/crm/format";
@@ -73,6 +74,9 @@ export function ConversationsView({
     ? followUps.find((followUp) => followUp.conversation_id === selectedConversation.id) ??
       null
     : null;
+  const hotCount = filteredConversations.filter(
+    (conversation) => conversation.lead_temperature?.toLowerCase() === "hot",
+  ).length;
 
   return (
     <div className="conversation-layout">
@@ -83,6 +87,13 @@ export function ConversationsView({
             <h3>Conversaciones</h3>
           </div>
           <span className="panel-count">{filteredConversations.length}</span>
+        </div>
+
+        <div className="conversation-list-summary">
+          <span>{hotCount} calientes</span>
+          <span>
+            {filteredConversations.filter((conversation) => !conversation.ai_enabled).length} en manual
+          </span>
         </div>
 
         <label className="field search-field">
@@ -117,12 +128,19 @@ export function ConversationsView({
                   type="button"
                 >
                   <div className="conversation-item-headline">
-                    <strong className="conversation-contact-name">
-                      {getDisplayName(conversation)}
-                    </strong>
-                    <span className="conversation-contact-phone">
-                      {conversation.phone_number}
-                    </span>
+                    <div>
+                      <strong className="conversation-contact-name">
+                        {getDisplayName(conversation)}
+                      </strong>
+                      <span className="conversation-contact-phone">
+                        {conversation.phone_number}
+                      </span>
+                    </div>
+                    <span
+                      className="conversation-ai-dot"
+                      data-state={conversation.ai_enabled ? "auto" : "manual"}
+                      title={conversation.ai_enabled ? "IA activa" : "Control manual"}
+                    />
                   </div>
 
                   <p className="conversation-item-preview">
@@ -132,11 +150,14 @@ export function ConversationsView({
                   <div className="conversation-item-meta">
                     <span
                       className="badge"
-                      data-tone={conversation.lead_temperature.toLowerCase()}
+                      data-tone={conversation.lead_temperature?.toLowerCase() ?? "cold"}
                     >
                       {getLeadTemperatureLabel(conversation.lead_temperature)}
                     </span>
-                    <span className="badge badge-muted">
+                    <span
+                      className="badge"
+                      data-tone={getLeadStatusTone(conversation.lead_status)}
+                    >
                       {getLeadStatusLabel(conversation.lead_status)}
                     </span>
                     <span
@@ -164,6 +185,20 @@ export function ConversationsView({
                 <div>
                   <span className="eyebrow">Chat</span>
                   <h3>{getDisplayName(selectedConversation)}</h3>
+                  <div className="detail-header-meta">
+                    <span
+                      className="badge"
+                      data-tone={selectedConversation.lead_temperature?.toLowerCase() ?? "cold"}
+                    >
+                      {getLeadTemperatureLabel(selectedConversation.lead_temperature)}
+                    </span>
+                    <span
+                      className="badge"
+                      data-tone={getLeadStatusTone(selectedConversation.lead_status)}
+                    >
+                      {getLeadStatusLabel(selectedConversation.lead_status)}
+                    </span>
+                  </div>
                 </div>
                 <div className="chat-meta">
                   <span>{selectedConversation.phone_number}</span>

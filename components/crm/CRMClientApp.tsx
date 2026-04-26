@@ -63,6 +63,39 @@ export function CRMClientApp({ view }: { view: CRMView }) {
         <div className="boot-mark">
           <span className="eyebrow">Pórtate Mal · CRM</span>
           <h1>Cargando workspace…</h1>
+          {workspace.error && (
+            <p style={{ color: "#dc2626", marginTop: "1rem", fontSize: "0.875rem" }}>
+              {workspace.error}
+            </p>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  if (workspace.error && !workspace.session) {
+    return (
+      <main className="boot-shell">
+        <div className="boot-mark">
+          <span className="eyebrow">Pórtate Mal · CRM</span>
+          <h1>Error de carga</h1>
+          <p style={{ color: "#dc2626", marginTop: "1rem", fontSize: "0.875rem" }}>
+            {workspace.error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: "1rem",
+              padding: "0.5rem 1rem",
+              backgroundColor: "#2563eb",
+              color: "white",
+              border: "none",
+              borderRadius: "0.25rem",
+              cursor: "pointer",
+            }}
+          >
+            Reintentar
+          </button>
         </div>
       </main>
     );

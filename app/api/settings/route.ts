@@ -1,4 +1,5 @@
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
+import { VALENTINA_DEFAULT_PROMPT } from "@/lib/agent/prompt";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -11,13 +12,17 @@ export async function GET(request: NextRequest) {
       .from("app_settings")
       .select("value")
       .eq("key", key)
-      .single();
+      .maybeSingle();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ key, value: data?.value ?? null });
+    return NextResponse.json({
+      key,
+      value:
+        data?.value ?? (key === "valentina_prompt" ? VALENTINA_DEFAULT_PROMPT : null),
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },

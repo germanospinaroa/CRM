@@ -76,13 +76,19 @@ Reglas estrictas:
   - warm: responde, cuenta su situación, abierto a explorar.
   - hot: pidió la llamada, dijo "sí quiero hablar con Germán", agendó,
     o muestra urgencia/intención clara.
-- leadStage ∈ {new, qualifying, nurturing, ready_to_buy, won, lost}:
-  - new: primer mensaje, todavía no se ha presentado.
-  - qualifying: Valentina está conociendo al lead.
-  - nurturing: lead pidió tiempo, le da vueltas, objeción suave.
-  - ready_to_buy: aceptó la llamada o pidió el link / agendó.
-  - won: confirmó compra o entró al programa.
+- leadStage ∈ {new, conversing, qualified, warm, hot, ready_for_call, call_scheduled, follow_up_pending, not_qualified, closed, lost, customer}:
+  - new: primer mensaje o todavía no hay contexto suficiente.
+  - conversing: hay respuesta activa, pero aún falta calificar.
+  - qualified: ya compartió situación/necesidad y puede aplicar.
+  - warm: interesado, pero sin intención clara de llamada.
+  - hot: alta intención comercial, pide avanzar o muestra urgencia.
+  - ready_for_call: aceptó hablar con Germán o pidió link de agenda.
+  - call_scheduled: dijo que ya agendó o confirmó llamada.
+  - follow_up_pending: pidió tiempo, quedó una duda o hay que retomar.
+  - not_qualified: no aplica al perfil o no tiene condiciones mínimas.
+  - closed: conversación cerrada manualmente o sin siguiente paso útil.
   - lost: rechazó claramente, no aplica, o pidió no escribir más.
+  - customer: confirmó compra o entró al programa.
 - intentLevel ∈ {low, medium, high}.
 - summary: 1-2 frases comerciales para que un humano sepa en qué punto está
   el lead y por qué. Lenguaje natural, no JSON-ish.
@@ -95,7 +101,7 @@ Reglas estrictas:
   la pelota está en cancha del lead y no hay nada que aportar.
 - followUpPriority ∈ {low, medium, high}.
 - followUpInHours: cuántas horas esperar antes del próximo toque
-  (hot: 4-12, warm: 12-24, nurturing/cold: 24-72).
+  (hot/ready_for_call: 4-12, warm/qualified: 12-24, follow_up_pending/cold: 24-72).
 - events: array de objetos { eventType, eventValue }. Ejemplos de eventType:
   "asked_for_call_link", "agreed_to_call", "shared_pain", "asked_about_zilis",
   "asked_about_price", "objection_time", "objection_selling", "asked_to_think".
@@ -249,20 +255,44 @@ function detectLeadTemperaturePM(text: string): LeadTemperature {
 function detectLeadStagePM(text: string, leadTemperature: LeadTemperature): LeadStatus {
   const normalized = text.toLowerCase();
 
+  if (/(ya pagu[eé]|compr[eé]|entr[eé] al programa|soy cliente)/iu.test(normalized)) {
+    return "customer";
+  }
+
   if (/(no me interesa|no gracias|no escribir mas|no escribir más|dejen de escribir)/iu.test(normalized)) {
     return "lost";
   }
 
+  if (/(no aplica|no es para mi|no es para mí|no tengo presupuesto|no puedo invertir)/iu.test(normalized)) {
+    return "not_qualified";
+  }
+
+  if (/(ya agend[eé]|agenda(?:do|da)|confirm[eé] la llamada|nos vemos en la llamada)/iu.test(normalized)) {
+    return "call_scheduled";
+  }
+
   if (/(agendar|calendly|si quiero la llamada|sí quiero la llamada|paseme el link|pásame el link|mandame el link|mándame el link)/iu.test(normalized)) {
-    return "ready_to_buy";
+    return "ready_for_call";
   }
 
   if (/(lo voy a pensar|déjame pensarlo|dejame pensarlo|lo pienso|despues|después)/iu.test(normalized)) {
-    return "nurturing";
+    return "follow_up_pending";
   }
 
-  if (leadTemperature === "warm" || leadTemperature === "hot") {
-    return "qualifying";
+  if (leadTemperature === "hot") {
+    return "hot";
+  }
+
+  if (
+    /(trabaj|emprend|negocio|empleo|ingreso adicional|quiero construir|necesito claridad|me interesa)/iu.test(
+      normalized,
+    )
+  ) {
+    return "qualified";
+  }
+
+  if (leadTemperature === "warm") {
+    return "conversing";
   }
 
   return "new";
@@ -308,6 +338,23 @@ function buildHeuristicEvents(input: {
     });
   }
 
+  if (
+    input.leadStage === "ready_for_call" ||
+    input.leadStage === "ready_to_buy"
+  ) {
+    events.push({
+      eventType: "ready_for_call",
+      eventValue: "accepted_call",
+    });
+  }
+
+  if (input.leadStage === "call_scheduled") {
+    events.push({
+      eventType: "call_scheduled",
+      eventValue: "lead_confirmed_call",
+    });
+  }
+
   for (const objection of input.objections) {
     events.push({
       eventType: "objection",
@@ -350,15 +397,29 @@ function buildPMNextAction(input: {
   leadStage: LeadStatus;
   leadTemperature: LeadTemperature;
 }) {
-  if (input.leadStage === "ready_to_buy") {
+  if (
+    input.leadStage === "ready_for_call" ||
+    input.leadStage === "ready_to_buy"
+  ) {
     return "Compartir link de Calendly y los 3 puntos a preparar para la llamada con Germán.";
   }
 
-  if (input.leadStage === "lost") {
+  if (input.leadStage === "call_scheduled") {
+    return "Confirmar que recibió la invitación y recordar que llegue con su situación, objetivo y principal freno.";
+  }
+
+  if (
+    input.leadStage === "lost" ||
+    input.leadStage === "not_qualified" ||
+    input.leadStage === "closed"
+  ) {
     return "Marcar como cerrado. No insistir más.";
   }
 
-  if (input.leadStage === "nurturing") {
+  if (
+    input.leadStage === "nurturing" ||
+    input.leadStage === "follow_up_pending"
+  ) {
     return "Esperar 24-48h y reabrir con una pregunta empática que ayude a destrabar la duda específica.";
   }
 
@@ -370,7 +431,7 @@ function buildPMNextAction(input: {
     return "Hacer 1-2 preguntas de calificación para entender qué busca y proponer la llamada si aplica.";
   }
 
-  if (input.leadTemperature === "hot") {
+  if (input.leadTemperature === "hot" || input.leadStage === "hot") {
     return "Proponer la llamada con Germán de inmediato y pasar el link.";
   }
 
@@ -385,11 +446,21 @@ function buildPMRecommendedMessage(input: {
   const name = input.firstName ?? "";
   const namePart = name ? `${name}, ` : "";
 
-  if (input.leadStage === "ready_to_buy") {
+  if (
+    input.leadStage === "ready_for_call" ||
+    input.leadStage === "ready_to_buy"
+  ) {
     return `Perfecto ${name}. Aquí puedes escoger horario: https://calendly.com/caballerodigital-us/30min. Cuando agendes, llega con claridad sobre 3 cosas: dónde estás hoy, qué te gustaría construir y qué te ha frenado.`.trim();
   }
 
-  if (input.leadStage === "nurturing") {
+  if (input.leadStage === "call_scheduled") {
+    return `Perfecto ${name}. Queda muy bien. Para aprovechar la llamada, llega con estas 3 cosas claras: dónde estás hoy, qué te gustaría construir y qué sientes que te ha frenado.`.trim();
+  }
+
+  if (
+    input.leadStage === "nurturing" ||
+    input.leadStage === "follow_up_pending"
+  ) {
     return `Hola ${name}, paso por aquí rápido. ¿Te quedó sonando lo que hablamos o prefieres que lo dejemos hasta aquí? Todo bien cualquiera de las dos 😊`.trim();
   }
 
@@ -457,9 +528,11 @@ function buildHeuristicAnalysis(input: {
     cold: 20,
   };
   const scoreAdjustment =
-    leadStage === "ready_to_buy" || leadStage === "call_scheduled"
+    leadStage === "ready_to_buy" ||
+    leadStage === "ready_for_call" ||
+    leadStage === "call_scheduled"
       ? 20
-      : leadStage === "qualified"
+      : leadStage === "qualified" || leadStage === "hot"
         ? 10
         : 0;
   const leadScore = Math.min(100, scoreByTemperature[leadTemperature] + scoreAdjustment);
@@ -490,16 +563,26 @@ function buildHeuristicAnalysis(input: {
     summary: summarizeText(summary, 240),
     nextBestAction,
     recommendedFollowUpMessage,
-    followUpNeeded: leadStage !== "won" && leadStage !== "lost",
+    followUpNeeded:
+      leadStage !== "won" &&
+      leadStage !== "customer" &&
+      leadStage !== "lost" &&
+      leadStage !== "closed" &&
+      leadStage !== "not_qualified",
     followUpPriority:
-      leadStage === "ready_to_buy" || leadTemperature === "hot"
+      leadStage === "ready_to_buy" ||
+      leadStage === "ready_for_call" ||
+      leadStage === "call_scheduled" ||
+      leadTemperature === "hot"
         ? "high"
         : leadTemperature === "warm"
           ? "medium"
           : "low",
     followUpInHours:
-      leadStage === "ready_to_buy"
+      leadStage === "ready_to_buy" || leadStage === "ready_for_call"
         ? 4
+        : leadStage === "call_scheduled"
+          ? 12
         : leadTemperature === "hot"
           ? 8
           : leadTemperature === "warm"
@@ -531,6 +614,16 @@ function normalizeLeadStage(value: unknown, fallback: LeadStatus) {
 
   if (
     normalized === "new" ||
+    normalized === "conversing" ||
+    normalized === "qualified" ||
+    normalized === "warm" ||
+    normalized === "hot" ||
+    normalized === "ready_for_call" ||
+    normalized === "call_scheduled" ||
+    normalized === "follow_up_pending" ||
+    normalized === "not_qualified" ||
+    normalized === "closed" ||
+    normalized === "customer" ||
     normalized === "qualifying" ||
     normalized === "nurturing" ||
     normalized === "ready_to_buy" ||

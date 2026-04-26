@@ -4,11 +4,14 @@ import { useDeferredValue, useEffect, useState } from "react";
 
 import {
   formatDate,
-  formatDateTime,
   getDisplayName,
   getFollowUpPriorityLabel,
+  getFollowUpPriorityTone,
   getLeadStatusLabel,
+  getLeadStatusTone,
+  getLeadTemperatureLabel,
   LEAD_STATUS_OPTIONS,
+  summarizeText,
 } from "@/lib/crm/format";
 import { getConversationMap, sortFollowUpsByDate } from "@/lib/crm/selectors";
 import type { ConversationRecord, FollowUpRecord } from "@/lib/types";
@@ -18,7 +21,13 @@ function toDateInput(value: string | null) {
     return "";
   }
 
-  return new Date(value).toISOString().slice(0, 10);
+  const date = new Date(value);
+
+  if (Number.isNaN(date.valueOf())) {
+    return "";
+  }
+
+  return date.toISOString().slice(0, 10);
 }
 
 export function FollowUpsView({
@@ -151,88 +160,117 @@ export function FollowUpsView({
           />
         </label>
 
-        <div className="table-wrap">
+        <div className="follow-up-list">
           {filteredFollowUps.length === 0 ? (
-            <p className="empty-state" style={{ padding: "1.2rem" }}>
+            <p className="empty-state">
               {loading
                 ? "Cargando seguimiento comercial…"
                 : "Aún no hay leads en seguimiento. Cuando Valentina califique a alguien, aparecerá aquí."}
             </p>
           ) : (
-            <table className="follow-up-table">
-              <thead>
-                <tr>
-                  <th>Phone number</th>
-                  <th>First name</th>
-                  <th>Last name</th>
-                  <th>Full name</th>
-                  <th>Desired product</th>
-                  <th>Customer need</th>
-                  <th>Summary</th>
-                  <th>Stage</th>
-                  <th>Priority</th>
-                  <th>Next step</th>
-                  <th>Recommended action</th>
-                  <th>Follow-up date</th>
-                  <th>Last contact</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredFollowUps.map((followUp) => {
-                  const conversation = conversationMap.get(followUp.conversation_id);
-                  const isSelected = selectedFollowUp?.id === followUp.id;
+            filteredFollowUps.map((followUp) => {
+              const conversation = conversationMap.get(followUp.conversation_id);
+              const isSelected = selectedFollowUp?.id === followUp.id;
 
-                  return (
-                    <tr
-                      className="follow-up-row"
-                      data-selected={isSelected}
-                      key={followUp.id}
-                      onClick={() => setSelectedFollowUpId(followUp.id)}
+              return (
+                <button
+                  className="follow-up-card"
+                  data-selected={isSelected}
+                  key={followUp.id}
+                  onClick={() => setSelectedFollowUpId(followUp.id)}
+                  type="button"
+                >
+                  <div className="follow-up-card-head">
+                    <div>
+                      <strong>
+                        {getDisplayName(
+                          conversation ?? { full_name: followUp.contact_name },
+                        )}
+                      </strong>
+                      <span>{followUp.phone_number}</span>
+                    </div>
+                    <span
+                      className="badge"
+                      data-tone={getFollowUpPriorityTone(followUp.priority)}
                     >
-                      <td>{followUp.phone_number}</td>
-                      <td>{conversation?.first_name ?? "Faltante"}</td>
-                      <td>{conversation?.last_name ?? "Faltante"}</td>
-                      <td>{getDisplayName(conversation ?? { full_name: followUp.contact_name })}</td>
-                      <td>{followUp.desired_product ?? "Sin definir"}</td>
-                      <td>{followUp.customer_need ?? "Sin definir"}</td>
-                      <td>{followUp.summary}</td>
-                      <td>{getLeadStatusLabel(followUp.stage)}</td>
-                      <td>{getFollowUpPriorityLabel(followUp.priority)}</td>
-                      <td>{followUp.next_step ?? "Pendiente"}</td>
-                      <td>{followUp.recommended_action ?? "Pendiente"}</td>
-                      <td>{formatDate(followUp.follow_up_date)}</td>
-                      <td>{formatDateTime(conversation?.last_contact_at)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      {getFollowUpPriorityLabel(followUp.priority)}
+                    </span>
+                  </div>
+
+                  <p>{summarizeText(followUp.summary, 128)}</p>
+
+                  <div className="follow-up-card-meta">
+                    <span
+                      className="badge"
+                      data-tone={getLeadStatusTone(followUp.stage)}
+                    >
+                      {getLeadStatusLabel(followUp.stage)}
+                    </span>
+                    {conversation ? (
+                      <span
+                        className="badge"
+                        data-tone={
+                          conversation.lead_temperature?.toLowerCase() ?? "cold"
+                        }
+                      >
+                        {getLeadTemperatureLabel(conversation.lead_temperature)}
+                      </span>
+                    ) : null}
+                    <span>{formatDate(followUp.follow_up_date)}</span>
+                  </div>
+
+                  <div className="follow-up-next-step">
+                    {followUp.next_step ?? followUp.recommended_action ?? "Definir siguiente acción"}
+                  </div>
+                </button>
+              );
+            })
           )}
         </div>
       </section>
 
       <section className="crm-panel follow-up-detail-panel">
-        {selectedFollowUp && selectedConversation ? (
+        {selectedFollowUp ? (
           <>
             <div className="section-heading">
               <div>
-                <span className="eyebrow">Lead Inspector</span>
-                <h3>{getDisplayName(selectedConversation)}</h3>
+                <span className="eyebrow">Detalle</span>
+                <h3>
+                  {getDisplayName(
+                    selectedConversation ?? {
+                      full_name: selectedFollowUp.contact_name,
+                    },
+                  )}
+                </h3>
+                <div className="detail-header-meta">
+                  <span
+                    className="badge"
+                    data-tone={getLeadStatusTone(selectedFollowUp.stage)}
+                  >
+                    {getLeadStatusLabel(selectedFollowUp.stage)}
+                  </span>
+                  <span
+                    className="badge"
+                    data-tone={getFollowUpPriorityTone(selectedFollowUp.priority)}
+                  >
+                    {getFollowUpPriorityLabel(selectedFollowUp.priority)}
+                  </span>
+                </div>
               </div>
               <span className="detail-phone">{selectedFollowUp.phone_number}</span>
             </div>
 
             <div className="detail-grid">
               <div>
-                <dt>Resumen</dt>
+                <dt>Resumen comercial</dt>
                 <dd>{selectedFollowUp.summary}</dd>
               </div>
               <div>
-                <dt>Need detectada</dt>
+                <dt>Necesidad detectada</dt>
                 <dd>{selectedFollowUp.customer_need ?? "Sin definir"}</dd>
               </div>
               <div>
-                <dt>Producto</dt>
+                <dt>Producto o servicio de interés</dt>
                 <dd>{selectedFollowUp.desired_product ?? "Sin definir"}</dd>
               </div>
               <div>
@@ -243,7 +281,7 @@ export function FollowUpsView({
 
             <div className="editor-grid">
               <label className="field">
-                <span>Stage</span>
+                <span>Estado</span>
                 <select
                   className="field-input"
                   onChange={(event) => setDraftStage(event.target.value)}
@@ -258,7 +296,7 @@ export function FollowUpsView({
               </label>
 
               <label className="field">
-                <span>Priority</span>
+                <span>Prioridad</span>
                 <select
                   className="field-input"
                   onChange={(event) => setDraftPriority(event.target.value)}
@@ -271,7 +309,7 @@ export function FollowUpsView({
               </label>
 
               <label className="field">
-                <span>Follow-up date</span>
+                <span>Fecha de seguimiento</span>
                 <input
                   className="field-input"
                   onChange={(event) => setDraftFollowUpDate(event.target.value)}
@@ -281,7 +319,7 @@ export function FollowUpsView({
               </label>
 
               <label className="field field-full">
-                <span>Next step</span>
+                <span>Siguiente acción</span>
                 <textarea
                   className="field-input field-textarea"
                   onChange={(event) => setDraftNextStep(event.target.value)}
@@ -291,7 +329,7 @@ export function FollowUpsView({
               </label>
 
               <label className="field field-full">
-                <span>Summary</span>
+                <span>Resumen</span>
                 <textarea
                   className="field-input field-textarea"
                   onChange={(event) => setDraftSummary(event.target.value)}
@@ -301,7 +339,7 @@ export function FollowUpsView({
               </label>
 
               <label className="field field-full">
-                <span>Recommended action</span>
+                <span>Acción recomendada</span>
                 <textarea
                   className="field-input field-textarea"
                   onChange={(event) => setDraftRecommendedAction(event.target.value)}

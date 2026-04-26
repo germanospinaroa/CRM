@@ -3,24 +3,24 @@ import type {
   FollowUpRecord,
   MessageRecord,
 } from "@/lib/types";
+import { isClosedLeadStatus, isReadyForCallStatus } from "@/lib/crm/format";
 
 export function computeCRMStats(
   conversations: ConversationRecord[],
   followUps: FollowUpRecord[],
 ) {
   const pendingFollowUps = followUps.filter((followUp) => {
-    const stage = followUp.stage.toLowerCase();
-    return stage !== "won" && stage !== "lost";
+    return !isClosedLeadStatus(followUp.stage);
   }).length;
 
   return {
     totalConversations: conversations.length,
     hotLeads: conversations.filter(
-      (conversation) => conversation.lead_temperature === "hot",
+      (conversation) => conversation.lead_temperature?.toLowerCase() === "hot",
     ).length,
     pendingFollowUps,
     readyToBuy: conversations.filter(
-      (conversation) => conversation.lead_status === "ready_to_buy",
+      (conversation) => isReadyForCallStatus(conversation.lead_status),
     ).length,
   };
 }
@@ -49,7 +49,7 @@ export function getConversationMap(conversations: ConversationRecord[]) {
 export function sortFollowUpsByDate(followUps: FollowUpRecord[]) {
   return [...followUps].sort((left, right) => {
     if (!left.follow_up_date && !right.follow_up_date) {
-      return left.updated_at.localeCompare(right.updated_at);
+      return right.updated_at.localeCompare(left.updated_at);
     }
 
     if (!left.follow_up_date) {

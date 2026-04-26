@@ -79,12 +79,19 @@ export function useCRMWorkspace(): CRMWorkspaceState {
       ]);
 
     if (conversationResponse.error || messageResponse.error || followUpResponse.error) {
-      setError(
+      const errorMessage =
         conversationResponse.error?.message ??
-          messageResponse.error?.message ??
-          followUpResponse.error?.message ??
-          "No fue posible cargar el CRM.",
-      );
+        messageResponse.error?.message ??
+        followUpResponse.error?.message ??
+        "No fue posible cargar el CRM.";
+
+      console.error("[CRM Data Load Error]", {
+        conversations: conversationResponse.error?.message,
+        messages: messageResponse.error?.message,
+        followUps: followUpResponse.error?.message,
+      });
+
+      setError(errorMessage);
       setDataLoading(false);
       return;
     }
@@ -123,29 +130,64 @@ export function useCRMWorkspace(): CRMWorkspaceState {
     }
 
     let mounted = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
-      if (!mounted) {
-        return;
+    const initAuth = async () => {
+      try {
+        const { data, error: sessionError } = await supabase.auth.getSession();
+
+        if (!mounted) {
+          return;
+        }
+
+        if (sessionError) {
+          console.error("[CRM Auth Error]", sessionError);
+          setError(`Error de autenticación: ${sessionError.message}`);
+          setAuthLoading(false);
+          return;
+        }
+
+        setSession(data.session);
+        setAuthLoading(false);
+      } catch (err) {
+        if (!mounted) {
+          return;
+        }
+
+        console.error("[CRM Init Auth Error]", err);
+        setError(
+          err instanceof Error ? err.message : "Error desconocido en autenticación"
+        );
+        setAuthLoading(false);
       }
+    };
 
-      if (sessionError) {
-        setError(sessionError.message);
+    // Timeout de 10 segundos para evitar bloqueos indefinidos
+    timeoutId = setTimeout(() => {
+      if (mounted) {
+        console.warn("[CRM Auth Timeout] getSession tomó más de 10 segundos");
+        setError("Timeout en autenticación. Por favor recarga la página.");
+        setAuthLoading(false);
       }
+    }, 10000);
 
-      setSession(data.session);
-      setAuthLoading(false);
-    });
+    void initAuth();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       setSession(nextSession);
       setAuthLoading(false);
     });
 
     return () => {
       mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       subscription.unsubscribe();
     };
   }, [supabase]);

@@ -25,14 +25,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json();
-
-  console.log(
-    "WhatsApp webhook payload:",
-    JSON.stringify(payload, null, 2),
-  );
-
   try {
+    const payload = await request.json();
+
+    console.log(
+      "WhatsApp webhook payload:",
+      JSON.stringify(payload, null, 2),
+    );
+
     const result = await processIncomingWhatsAppPayload(payload);
 
     return NextResponse.json(
@@ -45,11 +45,16 @@ export async function POST(request: Request) {
       },
     );
   } catch (error) {
-    console.error("Webhook processing failed:", error);
+    console.error("Webhook processing failed:", {
+      error,
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : null,
+    });
 
     return NextResponse.json(
       {
         ok: false,
+        error: "Webhook processing failed",
       },
       {
         status: 500,

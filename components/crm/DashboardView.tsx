@@ -4,6 +4,7 @@ import {
   formatDateTime,
   getDisplayName,
   getLeadStatusLabel,
+  getLeadStatusTone,
   getLeadTemperatureLabel,
   summarizeText,
 } from "@/lib/crm/format";
@@ -34,7 +35,7 @@ export function DashboardView({
   const lastMessageMap = getLastMessageMap(messages);
   const conversationMap = getConversationMap(conversations);
   const hotLeads = conversations
-    .filter((conversation) => conversation.lead_temperature === "hot")
+    .filter((conversation) => conversation.lead_temperature?.toLowerCase() === "hot")
     .slice(0, 5);
   const nextFollowUps = sortFollowUpsByDate(followUps).slice(0, 6);
   const recentConversations = conversations.slice(0, 6);
@@ -43,11 +44,11 @@ export function DashboardView({
     <div className="workspace-stack">
       <section className="crm-panel operations-hero">
         <div>
-          <span className="eyebrow">Pórtate Mal</span>
-          <h2>Hola 👋 Vamos a ver cómo va el día</h2>
+          <span className="eyebrow">Prioridades</span>
+          <h2>Pipeline comercial de WhatsApp</h2>
           <p>
-            Aquí tienes el pulso del pipeline: quién está caliente, qué objeción
-            tiene y cuál es el siguiente paso para llevarlo a la llamada con Germán.
+            Leads calientes, seguimientos próximos y conversaciones recientes
+            para decidir el siguiente toque sin revisar cada chat.
           </p>
         </div>
 
@@ -111,9 +112,15 @@ export function DashboardView({
                     <div className="row-meta">
                       <span
                         className="badge"
-                        data-tone={conversation.lead_temperature.toLowerCase()}
+                        data-tone={conversation.lead_temperature?.toLowerCase() ?? "cold"}
                       >
                         {getLeadTemperatureLabel(conversation.lead_temperature)}
+                      </span>
+                      <span
+                        className="badge"
+                        data-tone={getLeadStatusTone(conversation.lead_status)}
+                      >
+                        {getLeadStatusLabel(conversation.lead_status)}
                       </span>
                       <span className="row-preview">
                         {summarizeText(lastMessage?.content ?? conversation.last_summary)}
@@ -190,7 +197,7 @@ export function DashboardView({
                     <span>{conversation.phone_number}</span>
                   </div>
                   <div className="activity-secondary">
-                    <span>{getLeadStatusLabel(conversation.lead_status)}</span>
+                    <span>{conversation.next_step ?? getLeadStatusLabel(conversation.lead_status)}</span>
                     <span>{summarizeText(lastMessage?.content ?? conversation.last_summary)}</span>
                   </div>
                   <div className="activity-tertiary">

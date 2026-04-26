@@ -267,6 +267,20 @@ npm run build
 
 Fase 1 incluye las rutas `/CRM/settings` y `/api/settings`, verificables en el build output.
 
+## Auditoría y mejoras UI/CRM (Abril 2026)
+
+Cambios aplicados sin modificar variables reales ni romper contratos de webhook:
+
+- Interfaz en modo claro más sobria: fondo cálido, bordes de 8px, badges consistentes y menos ruido visual.
+- `/CRM/conversations`: navegación fija, lista de conversaciones con scroll interno, chat con historial scrollable y panel de lead más accionable.
+- `/CRM/follow-ups`: se reemplazó la tabla ancha por una lista operativa de seguimientos con detalle/editor fijo.
+- Panel de lead: resumen comercial, interés, necesidad, objeciones, prioridad, score, siguiente acción, mensaje sugerido y último contacto.
+- Sales Brain: estados extendidos (`ready_for_call`, `call_scheduled`, `follow_up_pending`, `not_qualified`, `customer`) y fallback heurístico más coherente.
+- Webhook: el `POST` ahora captura errores de parseo/procesamiento dentro del `try` y deja logs con mensaje y stack.
+- Settings: si `app_settings.valentina_prompt` no existe, `/api/settings` devuelve el prompt default en vez de bloquear el editor.
+
+No se requiere migración nueva de Supabase para estos cambios. El schema actual ya contiene las columnas usadas por la UI.
+
 ## Despliegue actual (Abril 2026)
 
 ### Estado Local ✅
