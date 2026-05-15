@@ -1,6 +1,48 @@
+import crypto from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { processIncomingWhatsAppPayload } from "@/lib/crm/process-incoming-message";
+
+let warnedMissingMetaAppSecret = false;
+
+function warnMissingMetaAppSecret() {
+  if (warnedMissingMetaAppSecret) {
+    return;
+  }
+
+  warnedMissingMetaAppSecret = true;
+  console.warn(
+    "[Security] Missing META_APP_SECRET. WhatsApp webhook signature validation cannot run.",
+  );
+}
+
+function getRequestId(request: Request) {
+  return request.headers.get("x-request-id")?.trim() || crypto.randomUUID();
+}
+
+function isValidMetaSignature(input: {
+  rawBody: string;
+  signatureHeader: string | null;
+  appSecret: string | null;
+}) {
+  if (!input.signatureHeader || !input.appSecret) {
+    return false;
+  }
+
+  const expectedSignature = `sha256=${crypto
+    .createHmac("sha256", input.appSecret)
+    .update(input.rawBody)
+    .digest("hex")}`;
+  const expectedBuffer = Buffer.from(expectedSignature);
+  const receivedBuffer = Buffer.from(input.signatureHeader.trim());
+
+  if (expectedBuffer.length !== receivedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -25,15 +67,60 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  try {
-    const payload = await request.json();
+  const requestId = getRequestId(request);
 
-    console.log(
-      "WhatsApp webhook payload:",
-      JSON.stringify(payload, null, 2),
-    );
+  try {
+    const appSecret = process.env.META_APP_SECRET?.trim() ?? null;
+    const signatureHeader = request.headers.get("x-hub-signature-256");
+    const rawBody = await request.text();
+
+    if (!appSecret) {
+      warnMissingMetaAppSecret();
+      console.error("[Webhook] Missing META_APP_SECRET", {
+        requestId,
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Webhook signature configuration missing.",
+        },
+        {
+          status: 503,
+        },
+      );
+    }
+
+    if (
+      !isValidMetaSignature({
+        rawBody,
+        signatureHeader,
+        appSecret,
+      })
+    ) {
+      console.warn("[Webhook] Invalid signature", {
+        requestId,
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Invalid webhook signature.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
+    const payload = JSON.parse(rawBody) as unknown;
 
     const result = await processIncomingWhatsAppPayload(payload);
+
+    console.info("[Webhook] Processed", {
+      requestId,
+      ignored: result.ignored,
+      conversationId:
+        "conversationId" in result ? result.conversationId ?? null : null,
+    });
 
     return NextResponse.json(
       {
@@ -45,10 +132,9 @@ export async function POST(request: Request) {
       },
     );
   } catch (error) {
-    console.error("Webhook processing failed:", {
-      error,
+    console.error("[Webhook] Processing failed", {
+      requestId,
       message: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : null,
     });
 
     return NextResponse.json(
