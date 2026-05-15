@@ -22,7 +22,7 @@ Importante:
 - Next.js 15 (App Router)
 - Supabase Auth + Postgres + Realtime
 - OpenAI (`gpt-4.1-mini`) para Valentina y Sales Brain
-- Meta WhatsApp Cloud API (Graph v23)
+- Meta WhatsApp Cloud API (Graph v25)
 - UI CRM responsive en **modo claro** (cálido, tipo Notion / Linear)
 
 ## Arquitectura corta
@@ -75,17 +75,28 @@ CRM /CRM (Supabase Realtime)
 Todas son **obligatorias** en producción. No subas valores reales al repo.
 
 ```bash
-WHATSAPP_ACCESS_TOKEN=        # Token permanente de WhatsApp Cloud API
+WHATSAPP_TOKEN=              # Token permanente de WhatsApp Cloud API
+WHATSAPP_ACCESS_TOKEN=       # Alias compatible opcional
 WHATSAPP_PHONE_NUMBER_ID=     # Phone number ID del WhatsApp Business
 WHATSAPP_VERIFY_TOKEN=        # Cadena que pones también en Meta (verify token)
+META_APP_SECRET=             # App Secret de Meta para validar X-Hub-Signature-256
+HUMAN_NOTIFY_PHONE=          # Tu WhatsApp personal para notificaciones humanas
 OPENAI_API_KEY=               # Key de OpenAI (org de Pórtate Mal)
 NEXT_PUBLIC_SUPABASE_URL=     # https://<ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=# anon key (frontend, RLS protegido)
 SUPABASE_SERVICE_ROLE_KEY=    # service role (server-only, NO exponer)
+CRON_SECRET=                 # Secreto para cron interno / automatización protegida
 ```
 
 > ⚠️ Si alguna de estas claves se commitea por error, **rotálas inmediatamente**
 > en Meta, OpenAI y Supabase.
+
+## Seguridad de endpoints
+
+- `POST /api/webhook` valida `X-Hub-Signature-256` con `META_APP_SECRET` antes de parsear el body.
+- `GET /api/webhook` mantiene la verificación estándar de Meta con `WHATSAPP_VERIFY_TOKEN`.
+- `GET|POST /api/automation/run` acepta `x-cron-secret: <CRON_SECRET>` para cron y también permite sesión autenticada del CRM para la ejecución manual desde Settings.
+- `settings`, `settings/diagnostics`, `conversations/delete`, `manual-reply` y `exports/log` requieren una sesión autenticada del CRM enviada como bearer token de Supabase.
 
 ## Configurar Supabase
 
@@ -110,11 +121,10 @@ El schema incluye RLS:
    - `https://<proyecto>.vercel.app/CRM`
    - `https://<proyecto>.vercel.app/api/webhook`
 
-> Nota técnica: `next.config.ts` tiene `assetPrefix: "/CRM-static"`. Esto es
-> necesario si `germanospina.com` es WordPress/otro sitio y `/CRM` es un proxy
-> al deploy de Vercel. Si germanospina.com está apuntando 100% a este proyecto
-> Vercel, este `assetPrefix` debe **eliminarse** o los assets estáticos
-> (`_next/static/...`) servirán 404. Verifica la topología antes de deployar.
+> Nota técnica: `next.config.ts` usa `assetPrefix` apuntando por defecto a
+> `https://crm.germanospina.com` (override con `NEXT_PUBLIC_ASSET_PREFIX`).
+> Esto evita 404 de assets cuando `germanospina.com/CRM` funciona como dominio
+> principal de navegación y el deploy vive en el subdominio CRM.
 
 ## Configurar Meta WhatsApp Cloud API
 
@@ -181,7 +191,7 @@ Esperado: `{"ok":true,"ignored":false}` y un nuevo registro en
 
 2. **Control manual de IA por conversación**
    - Botón toggle en la vista de Conversaciones: "Activar IA" / "Tomar control"
-   - Cuando está desactivado: Valentina NO responde, solo se guarda el mensaje
+   - Cuando está desactivado: Valentina NO responde automáticamente, pero SÍ analiza
    - Indicador visual: badges "IA"/"Manual" en la lista de conversaciones
    - Perfecto para tomar el control de conversaciones delicadas o cerrar ventas manualmente
 
@@ -208,13 +218,13 @@ Esperado: `{"ok":true,"ignored":false}` y un nuevo registro en
 |---------|---------|
 | `app/CRM/layout.tsx` | Comentario actualizado: agregado "Editable Prompts" |
 | `lib/openai/respond.ts` | Agregada función `getSystemPrompt()` que lee prompt de Supabase con fallback hardcodeado |
-| `lib/crm/process-incoming-message.ts` | Guard crítico: si `ai_enabled === false`, la IA no responde ni analiza |
+| `lib/crm/process-incoming-message.ts` | Modo manual real: no responde automáticamente, pero sí mantiene análisis y actualización comercial |
 | `hooks/use-crm-workspace.ts` | Función `toggleAiEnabled(conversationId, enabled)` para actualizar el flag en DB |
 | `components/crm/CRMClientApp.tsx` | Agregado "settings" al tipo CRMView, nav link, y renderizado condicional |
 | `components/crm/ConversationsView.tsx` | Botón de toggle IA, badges de estado, y prop `onToggleAiEnabled` |
 | `components/crm/FollowUpsView.tsx` | Dropdown de stage ahora usa `LEAD_STATUS_OPTIONS` con mapeo correcto |
 | `lib/sales-brain/analyze.ts` | Agregado cálculo de `leadScore` (0-100) en buildHeuristicAnalysis() y normalizeAnalysis() |
-| `next.config.ts` | Removido `assetPrefix: "/CRM-static"` para evitar issues de Vercel (ver nota técnica) |
+| `next.config.ts` | `assetPrefix` configurable para servir assets desde `crm.germanospina.com` |
 | `package.json` | Restaurado a JSON válido (se había corrompido con comentarios) |
 
 ### 🏗️ Arquitectura de Fase 1
@@ -321,12 +331,9 @@ Si ves "Cargando workspace..." indefinidamente, revisa la **consola F12** para v
 **Documento de troubleshooting:** ver `TROUBLESHOOTING.md` para solucionar problemas de carga.
 
 ### Nota técnica: assetPrefix
-El archivo `next.config.ts` **ha sido limpiado** en Fase 1:
-- Se removió `assetPrefix: "/CRM-static"` que causaba issues
-- Si germanospina.com es un sitio WordPress/ajeno con proxy a Vercel en `/CRM`, 
-  habrá que replicar la config de assets.
-- Si germanospina.com apunta 100% a este proyecto Vercel, el `assetPrefix` 
-  **debe permanecer vacío** como está hoy.
+El archivo `next.config.ts` usa `assetPrefix` con fallback a
+`https://crm.germanospina.com`. Si necesitas otra topología de dominios,
+configura `NEXT_PUBLIC_ASSET_PREFIX` en Vercel sin tocar el código.
 
 ## Pendiente para Pórtate Mal
 
